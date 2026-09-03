@@ -1,0 +1,5 @@
+# Kleinanzeigen serves a bot-check page to plain HTTP clients, so fetching needs
+# a real browser engine. After installing, run once:  playwright install chromium
+playwright>=1.44
+beautifulsoup4>=4.12
+lxml>=5.0
