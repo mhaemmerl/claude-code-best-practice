@@ -1,0 +1,6 @@
+results.json
+results.html
+saved/
+dump/
+.env
+__pycache__/
