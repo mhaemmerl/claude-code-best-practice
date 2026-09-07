@@ -1,9 +1,13 @@
 # Bike Computer Scraper
 
-Finds used **Garmin Edge 530 or better** bike computers on
+Finds used bike computers at **Garmin Edge 530 capability or better** on
 [Kleinanzeigen.de](https://www.kleinanzeigen.de) under a price ceiling
 (default **€180**), filters out the noise, and ranks what is left by
 value for money.
+
+Covers Garmin Edge, Wahoo ELEMNT, Hammerhead Karoo, Sigma ROX and Bryton Rider.
+Devices below 530 class (Edge 130/25, Bryton Rider 420, Sigma ROX 4, base
+Lezyne) are excluded by design, so widening the brands does not lower the bar.
 
 ## Why it is not just a search URL
 
@@ -18,7 +22,7 @@ Bastler`. This tool exists to throw those away and rank the real offers.
 | wanted ad | *Suche Garmin Edge 530 oder 830* |
 | defective | *Garmin Edge 830 defekt Bastler* — €45 |
 | over budget | *Garmin Edge 1040 Solar* — €320 |
-| too old a model | *Garmin Edge 25* |
+| below 530 class | *Garmin Edge 25*, *Bryton Rider 420* |
 | implausibly cheap | anything under `--min-price` (accessory or scam) |
 
 Pickup-only ads are **kept but penalised**, not dropped — some of the best-value
@@ -28,7 +32,15 @@ listings are local collection only. Use `--no-pickup` to exclude them outright.
 
 Score is driven by capability-per-euro, then adjusted:
 
-- **Model tier** — 1050 > 1040 > 1030 Plus > 1030 / 850 > 840 > 830 / 550 > 540 > 530
+- **Model tier** — one shared scale across brands, so a Wahoo ROAM and an Edge
+  830 can be compared directly:
+
+  | Tier | Devices |
+  |---|---|
+  | 10-9 | Edge 1050, Edge 1040, Karoo 3 |
+  | 8-7 | Edge 1030 Plus, Edge 1030, Edge 850, Karoo 2 |
+  | 6-5 | Edge 840, ELEMNT ROAM, Rider 860, Edge 830, Edge 550, Rider 750, ROX 12 |
+  | 4-3 | Edge 540, Edge Explore 2, ELEMNT BOLT, Edge 530, ROX 11, Mega XL |
 - **Headroom under budget** — cheaper is better, proportionally
 - **Bonuses** — like-new condition, OVP, warranty/receipt, bundled HR strap or
   speed/cadence sensor, ships rather than pickup-only, price negotiable (VB)
@@ -47,8 +59,11 @@ playwright install chromium
 ## Use
 
 ```bash
-# Default: Edge 530/830/1030/540/840, up to €180, 2 pages each
+# Default: 11 queries across Garmin/Wahoo/Hammerhead/Sigma/Bryton, ≤€180
 python bike_scraper.py
+
+# Garmin only
+python bike_scraper.py --queries "garmin edge 530" "garmin edge 830" "garmin edge 1030"
 
 # Tighter budget, more results, all categories
 python bike_scraper.py --max-price 140 --top 20 --category ""
@@ -105,7 +120,7 @@ Run it on a schedule with cron for a daily digest:
 ## Tests
 
 ```bash
-python3 tests/test_scraper.py     # 36 assertions, no test runner needed
+python3 tests/test_scraper.py     # 47 assertions, no test runner needed
 ```
 
 The fixture in `tests/fixtures/` encodes the ad shapes that actually cause
