@@ -33,19 +33,41 @@ from typing import Iterable, Sequence
 
 BASE = "https://www.kleinanzeigen.de"
 
-# Edge models at or above the 530 in capability, with a rough desirability tier.
-# Higher tier = more device for the money. Used to rank, never to exclude.
-MODEL_TIERS: dict[str, int] = {
-    "1050": 10,
-    "1040": 9,
-    "1030 plus": 8,
-    "1030": 7,
-    "850": 7,
-    "840": 6,
-    "830": 5,
-    "550": 5,
-    "540": 4,
-    "530": 3,
+# Every bike computer at or above Garmin Edge 530 capability, mapped onto one
+# shared tier scale so brands can be compared directly. Tier is desirability,
+# not price. Anything below 530 class (Edge 130/25, Bryton 420, Sigma ROX 4,
+# base Lezyne) is deliberately absent: it fails the "530 or better" bar.
+# Key = regex-ish match phrase, value = (tier, display name).
+MODEL_TIERS: dict[str, tuple[int, str]] = {
+    # Garmin Edge
+    "1050": (10, "Garmin Edge 1050"),
+    "1040": (9, "Garmin Edge 1040"),
+    "1030 plus": (8, "Garmin Edge 1030 Plus"),
+    "1030": (7, "Garmin Edge 1030"),
+    "850": (7, "Garmin Edge 850"),
+    "840": (6, "Garmin Edge 840"),
+    "830": (5, "Garmin Edge 830"),
+    "550": (5, "Garmin Edge 550"),
+    "540": (4, "Garmin Edge 540"),
+    "530": (3, "Garmin Edge 530"),
+    "explore 2": (4, "Garmin Edge Explore 2"),
+    # Wahoo - ROAM is the 830/1030-class device, BOLT the 530-class one.
+    "elemnt roam": (6, "Wahoo ELEMNT ROAM"),
+    "elemnt bolt": (4, "Wahoo ELEMNT BOLT"),
+    "elemnt": (4, "Wahoo ELEMNT"),
+    # Hammerhead
+    "karoo 3": (9, "Hammerhead Karoo 3"),
+    "karoo 2": (7, "Hammerhead Karoo 2"),
+    "karoo": (6, "Hammerhead Karoo"),
+    # Sigma - ROX 12 is the mapping flagship; 11.1 sits at 530 level.
+    "rox 12": (5, "Sigma ROX 12"),
+    "rox 11.1": (3, "Sigma ROX 11.1"),
+    "rox 11": (3, "Sigma ROX 11"),
+    # Bryton - only the mapping models clear the bar.
+    "rider 750": (5, "Bryton Rider 750"),
+    "rider 860": (6, "Bryton Rider 860"),
+    # Lezyne
+    "mega xl": (3, "Lezyne Mega XL"),
 }
 
 # Ads that match the search words but are not a bike computer. This is the
@@ -224,10 +246,12 @@ def detect_model(text: str) -> tuple[str | None, int]:
     """Return the highest-tier Edge model mentioned. '1030 Plus' beats '1030'."""
     low = re.sub(r"\s+", " ", text.lower())
     best: tuple[str | None, int] = (None, 0)
-    for name, tier in MODEL_TIERS.items():
-        pattern = r"\b" + name.replace(" ", r"\s*") + r"\b"
+    for phrase, (tier, display) in MODEL_TIERS.items():
+        # "1030 plus" must be allowed to beat "1030", so keep scanning and take
+        # the highest tier rather than returning on first match.
+        pattern = r"\b" + re.escape(phrase).replace(r"\ ", r"\s*") + r"\b"
         if re.search(pattern, low) and tier > best[1]:
-            best = (name, tier)
+            best = (display, tier)
     return best
 
 
@@ -247,7 +271,7 @@ def classify(listing: Listing, max_price: int, min_price: int,
 
     model, tier = detect_model(hay)
     if model is None:
-        return False, "no Edge 530-or-better model identified"
+        return False, "no model at Edge 530 level or above"
     listing.model, listing.tier = model, tier
 
     # Accessory ads usually name the model too ("Halterung für Edge 530"), so
@@ -283,7 +307,7 @@ def score(listing: Listing, max_price: int) -> None:
     price = max(listing.price or max_price, 1)
     value = (listing.tier * 100.0) / price
     total = value * 10.0
-    reasons.append(f"Edge {listing.model} (tier {listing.tier}) at {price} EUR")
+    reasons.append(f"{listing.model} (tier {listing.tier}) at {price} EUR")
 
     # Headroom under budget is worth something on its own.
     headroom = (max_price - price) / max_price
@@ -418,10 +442,10 @@ def render_console(results: list[Listing], dropped: dict[str, int], max_price: i
     if not results:
         return ("No matching listings.\n"
                 f"Dropped: {json.dumps(dropped, ensure_ascii=False)}")
-    lines = [f"Top {len(results)} used Garmin Edge (530+) under {max_price} EUR", ""]
+    lines = [f"Top {len(results)} used bike computers (Edge 530 class or better) under {max_price} EUR", ""]
     for i, r in enumerate(results, 1):
         price = f"{r.price} EUR" + (" VB" if r.negotiable else "")
-        lines.append(f"{i:2}. Edge {r.model:<9} {price:<12} score {r.score:>6}  {r.location}")
+        lines.append(f"{i:2}. {(r.model or '?'):<22} {price:<12} score {r.score:>6}  {r.location}")
         lines.append(f"    {r.title[:88]}")
         lines.append(f"    {', '.join(r.reasons[:4])}")
         lines.append(f"    {r.url}")
@@ -440,7 +464,7 @@ def render_html(results: list[Listing], max_price: int) -> str:
         <td><a href="{html.escape(r.url)}">{html.escape(r.title)}</a>
             <div class="meta">{html.escape(r.location)} &middot; {html.escape(r.posted)}</div>
             <div class="why">{html.escape(', '.join(r.reasons[:4]))}</div></td>
-        <td class="model">Edge {html.escape(r.model or '?')}</td>
+        <td class="model">{html.escape(r.model or '?')}</td>
         <td class="price">{price}</td>
       </tr>""")
     return f"""<!doctype html>
@@ -498,8 +522,13 @@ def send_email(subject: str, body_html: str, to_addr: str) -> None:
 # --------------------------------------------------------------------------- #
 
 DEFAULT_QUERIES = [
+    # Garmin
     "garmin edge 530", "garmin edge 830", "garmin edge 1030",
-    "garmin edge 540", "garmin edge 840",
+    "garmin edge 540", "garmin edge 840", "garmin edge explore 2",
+    # Wahoo
+    "wahoo elemnt bolt", "wahoo elemnt roam",
+    # Others at 530 class or above
+    "hammerhead karoo", "sigma rox 12", "bryton rider 750",
 ]
 
 
