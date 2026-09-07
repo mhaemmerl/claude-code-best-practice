@@ -41,10 +41,16 @@ check("free", parse_price("Zu verschenken"), (0, False))
 check("empty", parse_price(""), (None, False))
 
 print("\ndetect_model")
-check("plain 530", detect_model("garmin edge 530 gebraucht"), ("530", 3))
-check("plus beats base", detect_model("edge 1030 plus ovp"), ("1030 plus", 8))
-check("highest of several", detect_model("passt für edge 530 830 1030"), ("1030", 7))
+check("plain 530", detect_model("garmin edge 530 gebraucht"), ("Garmin Edge 530", 3))
+check("plus beats base", detect_model("edge 1030 plus ovp"), ("Garmin Edge 1030 Plus", 8))
+check("highest of several", detect_model("passt für edge 530 830 1030"), ("Garmin Edge 1030", 7))
 check("too old", detect_model("garmin edge 25 gps"), (None, 0))
+check("wahoo roam", detect_model("wahoo elemnt roam gps"), ("Wahoo ELEMNT ROAM", 6))
+check("roam beats bare elemnt", detect_model("wahoo elemnt roam v2")[1] > 4, True)
+check("hammerhead", detect_model("hammerhead karoo 2 radcomputer"), ("Hammerhead Karoo 2", 7))
+check("sigma", detect_model("sigma rox 12.1 evo"), ("Sigma ROX 12", 5))
+check("sub-530 bryton excluded", detect_model("bryton rider 420"), (None, 0))
+check("sub-530 sigma excluded", detect_model("sigma rox 4.0"), (None, 0))
 
 print("\nsearch_url")
 check("umlauts", slugify("Fahrradcomputer für Straße"), "fahrradcomputer-fuer-strasse")
@@ -60,7 +66,7 @@ check("all categories",
 
 print("\nparsing the fixture")
 listings = parse_listings(FIXTURE.read_text(encoding="utf-8"))
-check("all ads found", len(listings), 10)
+check("all ads found", len(listings), 14)
 check("title", listings[0].title,
       "Garmin Edge 530 GPS Fahrradcomputer sehr guter Zustand")
 check("price", (listings[0].price, listings[0].negotiable), (139, True))
@@ -82,11 +88,17 @@ check("1030 Plus kept", verdicts["2801005"], "keep")
 check("over budget rejected", verdicts["2801006"], "over budget (320 > 180 EUR)")
 check("screen protector rejected", verdicts["2801007"], "accessory only (mount/case/cable)")
 check("830 kept", verdicts["2801008"], "keep")
-check("Edge 25 rejected", verdicts["2801009"], "no Edge 530-or-better model identified")
+check("Edge 25 rejected", verdicts["2801009"], "no model at Edge 530 level or above")
 check("pickup-only kept by default", verdicts["2801010"], "keep")
 
+check("Wahoo ROAM kept", verdicts["2801011"], "keep")
+check("Hammerhead Karoo 2 kept", verdicts["2801012"], "keep")
+check("Bryton 420 below the bar", verdicts["2801013"],
+      "no model at Edge 530 level or above")
+check("Wahoo mount rejected", verdicts["2801014"], "accessory only (mount/case/cable)")
+
 kept = [a for a in listings if verdicts[a.ad_id] == "keep"]
-check("survivor count", len(kept), 4)
+check("survivor count", len(kept), 6)
 
 _, hard = classify(listings[9], MAX_PRICE, MIN_PRICE, exclude_pickup_only=True)
 check("--no-pickup excludes it", hard, "pickup only")
@@ -95,7 +107,8 @@ print("\nscoring")
 for ad in kept:
     score(ad, MAX_PRICE)
 ranked = sorted(kept, key=lambda a: a.score, reverse=True)
-check("1030 Plus ranks first", ranked[0].model, "1030 plus")
+check("1030 Plus ranks first", ranked[0].model, "Garmin Edge 1030 Plus")
+check("all brands represented", len({a.model.split()[0] for a in kept}), 3)
 check("pickup-only ranks last", ranked[-1].ad_id, "2801010")
 check("pickup penalty noted", "pickup only — no shipping" in ranked[-1].reasons, True)
 check("sensors noted", "heart-rate strap included" in
